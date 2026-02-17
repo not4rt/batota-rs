@@ -1,5 +1,5 @@
 [package]
-name = "cheat-engine-rs"
+name = "batota"
 version = "0.1.0"
 edition = "2024"
 

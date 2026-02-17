@@ -3,4 +3,4 @@ pub mod layout;
 pub mod state;
 pub mod tables;
 
-pub use app::CheatEngineApp;
+pub use app::BatotaApp;

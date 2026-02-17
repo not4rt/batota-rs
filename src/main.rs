@@ -2,7 +2,7 @@ mod core;
 mod ui;
 
 use eframe::egui;
-use ui::CheatEngineApp;
+use ui::BatotaApp;
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -13,8 +13,8 @@ fn main() -> Result<(), eframe::Error> {
     };
 
     eframe::run_native(
-        "Cheat Engine",
+        "Batota",
         options,
-        Box::new(|_cc| Ok(Box::new(CheatEngineApp::default()))),
+        Box::new(|_cc| Ok(Box::new(BatotaApp::default()))),
     )
 }

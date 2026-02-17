@@ -1,1 +1,30 @@
+# Rust build artifacts
 /target
+
+# Debug files
+*.pdb
+
+# Binary outputs
+batota
+batota-*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Release artifacts
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Backup files
+*.bak
+*.tmp
+
+# Log files
+*.log

@@ -1,20 +1,20 @@
 use eframe::egui;
 
-use super::state::CheatEngineAppState;
+use super::state::BatotaAppState;
 
 /// Layout helpers for rendering the main UI sections.
 /// This module focuses on arranging panels and delegating to per-section renderers.
 pub struct Layout;
 
 impl Layout {
-    pub fn render(ctx: &egui::Context, state: &mut CheatEngineAppState) {
+    pub fn render(ctx: &egui::Context, state: &mut BatotaAppState) {
         Self::render_menu_bar(ctx, state);
         Self::render_status_bar(ctx, state);
         Self::render_scan_panel(ctx, state);
         Self::render_center(ctx, state);
     }
 
-    fn render_menu_bar(ctx: &egui::Context, state: &mut CheatEngineAppState) {
+    fn render_menu_bar(ctx: &egui::Context, state: &mut BatotaAppState) {
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
@@ -27,7 +27,7 @@ impl Layout {
                     ui.label("Coming soon");
                 });
                 ui.menu_button("Help", |ui| {
-                    ui.label("Cheat Engine (egui)");
+                    ui.label("Batota - Memory Scanner");
                 });
             });
 
@@ -46,7 +46,7 @@ impl Layout {
         });
     }
 
-    fn render_status_bar(ctx: &egui::Context, state: &mut CheatEngineAppState) {
+    fn render_status_bar(ctx: &egui::Context, state: &mut BatotaAppState) {
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(&state.status_message);
@@ -59,7 +59,7 @@ impl Layout {
         });
     }
 
-    fn render_scan_panel(ctx: &egui::Context, state: &mut CheatEngineAppState) {
+    fn render_scan_panel(ctx: &egui::Context, state: &mut BatotaAppState) {
         egui::SidePanel::right("scan_panel")
             .resizable(false)
             .min_width(280.0)
@@ -119,7 +119,7 @@ impl Layout {
             });
     }
 
-    fn render_center(ctx: &egui::Context, state: &mut CheatEngineAppState) {
+    fn render_center(ctx: &egui::Context, state: &mut BatotaAppState) {
         egui::CentralPanel::default().show(ctx, |ui| {
             if state.is_scanning && state.scan_progress_total > 0 {
                 let progress =

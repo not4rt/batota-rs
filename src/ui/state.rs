@@ -1,14 +1,14 @@
 use eframe::egui;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use super::tables::{FoundAddressesTable, SavedAddress as TableSavedAddress, SavedAddressesTable};
 use crate::core::{
-    list_processes, FoundAddress, MemoryReader, Process, ScanType, Scanner, Value, ValueType,
+    FoundAddress, MemoryReader, Process, ScanType, Scanner, Value, ValueType, list_processes,
 };
 
-pub(crate) struct CheatEngineAppState {
+pub(crate) struct BatotaAppState {
     pub(crate) processes: Vec<Process>,
     pub(crate) selected_process: Option<Process>,
     pub(crate) show_process_list: bool,
@@ -54,7 +54,7 @@ pub(crate) struct SavedAddress {
     pub(crate) frozen: bool,
 }
 
-impl Default for CheatEngineAppState {
+impl Default for BatotaAppState {
     fn default() -> Self {
         Self {
             processes: Vec::new(),
@@ -87,7 +87,7 @@ impl Default for CheatEngineAppState {
     }
 }
 
-impl CheatEngineAppState {
+impl BatotaAppState {
     pub(crate) fn apply_ce_style(&self, ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = egui::vec2(6.0, 4.0);

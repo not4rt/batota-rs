@@ -2,21 +2,21 @@
 use eframe::egui;
 
 use super::layout::Layout;
-use super::state::CheatEngineAppState;
+use super::state::BatotaAppState;
 
-pub struct CheatEngineApp {
-    state: CheatEngineAppState,
+pub struct BatotaApp {
+    state: BatotaAppState,
 }
 
-impl Default for CheatEngineApp {
+impl Default for BatotaApp {
     fn default() -> Self {
         Self {
-            state: CheatEngineAppState::default(),
+            state: BatotaAppState::default(),
         }
     }
 }
 
-impl eframe::App for CheatEngineApp {
+impl eframe::App for BatotaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.state.apply_ce_style(ctx);
         self.state.editing_saved_value = None;
