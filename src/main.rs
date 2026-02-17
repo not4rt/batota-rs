@@ -31,6 +31,7 @@ struct CheatEngineApp {
     processes: Vec<Process>,
     selected_process: Option<Process>,
     show_process_list: bool,
+    process_filter: String,
 
     value_type: ValueType,
     scan_type: ScanType,
@@ -46,6 +47,8 @@ struct CheatEngineApp {
     selected_saved_indices: Vec<usize>,
     status_message: String,
     scroll_to_top: bool,
+    value_edit_buffers: Vec<String>,
+    editing_saved_value: Option<usize>,
     scan_value_type: ValueType,
     last_refresh: Instant,
     refresh_interval: Duration,
@@ -71,6 +74,7 @@ impl Default for CheatEngineApp {
             processes: Vec::new(),
             selected_process: None,
             show_process_list: false,
+            process_filter: String::new(),
             value_type: ValueType::I32,
             scan_type: ScanType::ExactValue,
             search_value: String::new(),
@@ -83,6 +87,8 @@ impl Default for CheatEngineApp {
             selected_saved_indices: Vec::new(),
             status_message: "Ready".to_string(),
             scroll_to_top: false,
+            value_edit_buffers: Vec::new(),
+            editing_saved_value: None,
             scan_value_type: ValueType::I32,
             last_refresh: Instant::now(),
             refresh_interval: Duration::from_millis(250),
@@ -345,7 +351,10 @@ impl CheatEngineApp {
 
         let reader = MemoryReader::new(process.pid);
 
-        for saved in &mut self.saved_addresses {
+        for (i, saved) in self.saved_addresses.iter_mut().enumerate() {
+            if self.editing_saved_value == Some(i) {
+                continue;
+            }
             let size = saved.value_type.size();
             if let Ok(data) = reader.read_value(saved.address, size) {
                 if let Some(v) = Value::from_bytes(&data, saved.value_type) {
@@ -369,6 +378,7 @@ impl CheatEngineApp {
 impl eframe::App for CheatEngineApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.apply_ce_style(ctx);
+        self.editing_saved_value = None;
 
         if let Some(receiver) = &self.scan_receiver {
             if let Ok(result) = receiver.try_recv() {
@@ -403,18 +413,22 @@ impl eframe::App for CheatEngineApp {
             }
         }
 
-        if self.last_refresh.elapsed() >= self.refresh_interval {
-            self.refresh_live_values();
-            self.last_refresh = Instant::now();
-        }
-
         if self.show_process_list {
             egui::Window::new("Process List")
                 .default_width(500.0)
                 .default_height(400.0)
                 .show(ctx, |ui| {
+                    let filter = self.process_filter.trim().to_lowercase();
+
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for process in &self.processes {
+                            if !filter.is_empty()
+                                && !process.name.to_lowercase().contains(&filter)
+                                && !process.pid.to_string().contains(&filter)
+                            {
+                                continue;
+                            }
+
                             if ui
                                 .button(format!("{} - {}", process.name, process.pid))
                                 .clicked()
@@ -427,6 +441,15 @@ impl eframe::App for CheatEngineApp {
                                     format!("Process: {} ({})", process.name, process.pid);
                             }
                         }
+                    });
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label("Filter");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.process_filter)
+                                .desired_width(ui.available_width()),
+                        );
                     });
                 });
         }
@@ -591,7 +614,7 @@ impl eframe::App for CheatEngineApp {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width() * 0.5 - 6.0);
-                    ui.set_height(ui.available_height());
+                    ui.set_min_height(ui.available_height());
                     ui.strong("Found addresses");
                     ui.label(format!("{}", self.scan_results.len()));
                     ui.separator();
@@ -602,23 +625,26 @@ impl eframe::App for CheatEngineApp {
                         ui.label("Value");
                     });
                     ui.separator();
+                    ui.add_space(2.0);
 
                     let avail_height = ui.available_height();
                     let scroll = if self.scroll_to_top {
                         self.scroll_to_top = false;
                         egui::ScrollArea::vertical()
-                            .id_source("found_addresses_scroll")
+                            .id_salt("found_addresses_scroll")
                             .max_height(avail_height)
                             .auto_shrink([false, false])
                             .scroll_offset(egui::Vec2::ZERO)
                     } else {
                         egui::ScrollArea::vertical()
-                            .id_source("found_addresses_scroll")
+                            .id_salt("found_addresses_scroll")
                             .max_height(avail_height)
                             .auto_shrink([false, false])
                     };
 
                     scroll.show(ui, |ui| {
+                        ui.set_min_height(avail_height);
+                        ui.set_min_width(ui.available_width());
                         let max_show = self.scan_results.len().min(10000);
 
                         for (i, res) in self.scan_results.iter().take(max_show).enumerate() {
@@ -654,7 +680,7 @@ impl eframe::App for CheatEngineApp {
 
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
-                    ui.set_height(ui.available_height());
+                    ui.set_min_height(ui.available_height());
                     ui.strong("Address list");
                     ui.separator();
 
@@ -675,17 +701,30 @@ impl eframe::App for CheatEngineApp {
                         ui.label("Value");
                     });
                     ui.separator();
+                    ui.add_space(2.0);
 
                     let avail_height = ui.available_height();
                     egui::ScrollArea::vertical()
-                        .id_source("address_list_scroll")
+                        .id_salt("address_list_scroll")
                         .max_height(avail_height)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
+                            ui.set_min_height(avail_height);
+                            ui.set_min_width(ui.available_width());
                             let mut value_updates = Vec::new();
+
+                            if self.value_edit_buffers.len() != self.saved_addresses.len() {
+                                self.value_edit_buffers
+                                    .resize(self.saved_addresses.len(), String::new());
+                            }
 
                             for (i, saved) in self.saved_addresses.iter_mut().enumerate() {
                                 let selected = self.selected_saved_indices.contains(&i);
+                                let edit_id = egui::Id::new(("saved_value", i));
+                                let is_editing = ui.memory(|mem| mem.has_focus(edit_id));
+                                if !is_editing {
+                                    self.value_edit_buffers[i] = format!("{}", saved.value);
+                                }
 
                                 ui.horizontal(|ui| {
                                     let cb = ui.checkbox(&mut saved.frozen, "");
@@ -707,14 +746,19 @@ impl eframe::App for CheatEngineApp {
                                     ui.label(format!("{:X}", saved.address));
                                     ui.label(format!("{}", saved.value_type));
 
-                                    let mut vstr = format!("{}", saved.value);
                                     let ve = ui.add(
-                                        egui::TextEdit::singleline(&mut vstr).desired_width(80.0),
+                                        egui::TextEdit::singleline(&mut self.value_edit_buffers[i])
+                                            .desired_width(80.0)
+                                            .id(edit_id),
                                     );
+                                    if ve.has_focus() {
+                                        self.editing_saved_value = Some(i);
+                                    }
                                     if ve.lost_focus()
                                         && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                     {
-                                        value_updates.push((i, vstr, saved.value_type));
+                                        let new_value_str = self.value_edit_buffers[i].clone();
+                                        value_updates.push((i, new_value_str, saved.value_type));
                                     }
                                 });
                             }
@@ -729,6 +773,11 @@ impl eframe::App for CheatEngineApp {
                 });
             });
         });
+
+        if self.last_refresh.elapsed() >= self.refresh_interval {
+            self.refresh_live_values();
+            self.last_refresh = Instant::now();
+        }
 
         if self.is_scanning {
             ctx.request_repaint();
