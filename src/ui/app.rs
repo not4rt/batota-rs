@@ -32,28 +32,30 @@ impl eframe::App for CheatEngineApp {
                     let filter = state.process_filter.trim().to_lowercase();
 
                     ui.push_id("process_list_scroll", |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            for process in &state.processes {
-                                if !filter.is_empty()
-                                    && !process.name.to_lowercase().contains(&filter)
-                                    && !process.pid.to_string().contains(&filter)
-                                {
-                                    continue;
-                                }
+                        egui::ScrollArea::vertical()
+                            .max_height(10.0 * 24.0)
+                            .show(ui, |ui| {
+                                for process in &state.processes {
+                                    if !filter.is_empty()
+                                        && !process.name.to_lowercase().contains(&filter)
+                                        && !process.pid.to_string().contains(&filter)
+                                    {
+                                        continue;
+                                    }
 
-                                if ui
-                                    .button(format!("{} - {}", process.name, process.pid))
-                                    .clicked()
-                                {
-                                    state.selected_process = Some(process.clone());
-                                    state.show_process_list = false;
-                                    state.scan_results.clear();
-                                    state.first_scan = true;
-                                    state.status_message =
-                                        format!("Process: {} ({})", process.name, process.pid);
+                                    if ui
+                                        .button(format!("{} - {}", process.name, process.pid))
+                                        .clicked()
+                                    {
+                                        state.selected_process = Some(process.clone());
+                                        state.show_process_list = false;
+                                        state.scan_results.clear();
+                                        state.first_scan = true;
+                                        state.status_message =
+                                            format!("Process: {} ({})", process.name, process.pid);
+                                    }
                                 }
-                            }
-                        });
+                            });
                     });
 
                     ui.separator();

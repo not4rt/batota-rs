@@ -24,6 +24,9 @@ pub(crate) struct CheatEngineAppState {
     pub(crate) scan_receiver: Option<Receiver<ScanResult>>,
     pub(crate) scan_stream_receiver: Option<Receiver<Vec<FoundAddress>>>,
     pub(crate) scan_done_receiver: Option<Receiver<Result<(), String>>>,
+    pub(crate) scan_progress_receiver: Option<Receiver<(usize, usize)>>,
+    pub(crate) scan_progress_current: usize,
+    pub(crate) scan_progress_total: usize,
     pub(crate) first_scan: bool,
 
     pub(crate) selected_result_indices: Vec<usize>,
@@ -67,6 +70,9 @@ impl Default for CheatEngineAppState {
             scan_receiver: None,
             scan_stream_receiver: None,
             scan_done_receiver: None,
+            scan_progress_receiver: None,
+            scan_progress_current: 0,
+            scan_progress_total: 0,
             first_scan: true,
             selected_result_indices: Vec::new(),
             selected_saved_indices: Vec::new(),
@@ -131,9 +137,13 @@ impl CheatEngineAppState {
 
         let (batch_tx, batch_rx) = channel();
         let (done_tx, done_rx) = channel();
+        let (progress_tx, progress_rx) = channel();
         self.scan_receiver = None;
         self.scan_stream_receiver = Some(batch_rx);
         self.scan_done_receiver = Some(done_rx);
+        self.scan_progress_receiver = Some(progress_rx);
+        self.scan_progress_current = 0;
+        self.scan_progress_total = 0;
 
         let existing_results = if self.first_scan {
             Vec::new()
@@ -162,8 +172,13 @@ impl CheatEngineAppState {
 
             if is_first_scan {
                 let batch_size = 512;
-                match scanner.initial_scan_streaming(scan_type, target_value, batch_size, batch_tx)
-                {
+                match scanner.initial_scan_streaming_with_progress(
+                    scan_type,
+                    target_value,
+                    batch_size,
+                    batch_tx,
+                    progress_tx,
+                ) {
                     Ok(_) => {
                         let _ = done_tx.send(Ok(()));
                     }
@@ -378,6 +393,9 @@ impl CheatEngineAppState {
         self.is_scanning = false;
         self.scan_stream_receiver = None;
         self.scan_done_receiver = None;
+        self.scan_progress_receiver = None;
+        self.scan_progress_current = 0;
+        self.scan_progress_total = 0;
         self.status_message = "Ready".to_string();
     }
 
@@ -450,6 +468,13 @@ impl CheatEngineAppState {
             }
         }
 
+        if let Some(rx) = &self.scan_progress_receiver {
+            for (current, total) in rx.try_iter() {
+                self.scan_progress_current = current;
+                self.scan_progress_total = total;
+            }
+        }
+
         if appended && self.is_scanning {
             self.status_message = format!("Found: {}", self.scan_results.len());
         }
@@ -461,6 +486,9 @@ impl CheatEngineAppState {
                         self.is_scanning = false;
                         self.first_scan = false;
                         self.scan_value_type = self.value_type;
+                        if self.scan_progress_total > 0 {
+                            self.scan_progress_current = self.scan_progress_total;
+                        }
                         let count = self.scan_results.len();
                         self.status_message = if count == 0 {
                             "Found: 0 (hint: try Unknown initial value or check permissions)"
@@ -483,6 +511,7 @@ impl CheatEngineAppState {
                 }
                 self.scan_done_receiver = None;
                 self.scan_stream_receiver = None;
+                self.scan_progress_receiver = None;
             }
         }
     }

@@ -121,6 +121,13 @@ impl Layout {
 
     fn render_center(ctx: &egui::Context, state: &mut CheatEngineAppState) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            if state.is_scanning && state.scan_progress_total > 0 {
+                let progress =
+                    state.scan_progress_current as f32 / state.scan_progress_total as f32;
+                ui.add(egui::ProgressBar::new(progress).show_percentage());
+                ui.separator();
+            }
+
             let total_height = ui.available_height();
             let full_width = ui.available_width();
             let separator_height = ui.spacing().item_spacing.y + 2.0;
