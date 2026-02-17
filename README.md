@@ -6,7 +6,7 @@ A lightweight memory scanner and offline game cheat tool for Linux with a GUI in
 
 ## Screenshot
 
-![Batota Interface](batota-0_1.png)
+![Batota Interface](0_1.png)
 
 *Batota's interface showing memory scanning and address management*
 
