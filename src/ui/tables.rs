@@ -118,6 +118,7 @@ pub struct SavedAddressesTable<'a> {
     value_edit_buffers: &'a mut Vec<String>,
     editing_saved_value: &'a mut Option<usize>,
     pending_updates: Vec<(usize, String, ValueType)>,
+    pending_changes: Option<(usize, String, ValueType)>, // (row, value_str, value_type)
     prefetched: Vec<egui_table::PrefetchInfo>,
 }
 
@@ -138,6 +139,7 @@ impl<'a> SavedAddressesTable<'a> {
             value_edit_buffers,
             editing_saved_value,
             pending_updates: vec![],
+            pending_changes: None,
             prefetched: vec![],
         }
     }
@@ -166,6 +168,10 @@ impl<'a> SavedAddressesTable<'a> {
 
     pub fn take_updates(&mut self) -> Vec<(usize, String, ValueType)> {
         std::mem::take(&mut self.pending_updates)
+    }
+
+    pub fn take_changed(&mut self) -> Option<(usize, String, ValueType)> {
+        self.pending_changes.take()
     }
 }
 
@@ -247,7 +253,13 @@ impl<'a> egui_table::TableDelegate for SavedAddressesTable<'a> {
                     if ve.has_focus() {
                         *self.editing_saved_value = Some(row);
                     }
+                    if ve.changed() {
+                        // Track text changes for debounced write
+                        let new_value_str = self.value_edit_buffers[row].clone();
+                        self.pending_changes = Some((row, new_value_str, data.value_type));
+                    }
                     if ve.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        // Immediate write on Enter key
                         let new_value_str = self.value_edit_buffers[row].clone();
                         self.pending_updates
                             .push((row, new_value_str, data.value_type));

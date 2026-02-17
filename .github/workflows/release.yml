@@ -71,7 +71,7 @@ jobs:
 
       - name: Rename binary
         run: |
-          mv target/release/batota batota-linux-x86_64
+          mv target/release/batota-rs batota-linux-x86_64
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

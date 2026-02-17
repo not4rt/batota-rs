@@ -38,6 +38,10 @@ pub(crate) struct BatotaAppState {
     pub(crate) scan_value_type: ValueType,
     pub(crate) last_refresh: Instant,
     pub(crate) refresh_interval: Duration,
+
+    // Debounce for auto-writing edited values
+    pub(crate) value_edit_last_changed: Option<(usize, Instant)>, // (row_index, last_change_time)
+    pub(crate) value_edit_debounce: Duration,
 }
 
 #[derive(Clone)]
@@ -77,6 +81,8 @@ impl Default for BatotaAppState {
             scan_value_type: ValueType::I32,
             last_refresh: Instant::now(),
             refresh_interval: Duration::from_millis(250),
+            value_edit_last_changed: None,
+            value_edit_debounce: Duration::from_millis(500),
         }
     }
 }
@@ -572,7 +578,7 @@ impl BatotaAppState {
             .map(TableSavedAddress::from)
             .collect();
 
-        let value_updates = ui
+        let (value_updates, value_changed) = ui
             .push_id("saved_addresses_table", |ui| {
                 let mut saved_table = SavedAddressesTable::new(
                     &mut table_rows,
@@ -582,16 +588,46 @@ impl BatotaAppState {
                 );
                 let table = saved_table.table(egui::Id::new(("table", "saved_addresses")));
                 table.show(ui, &mut saved_table);
-                saved_table.take_updates()
+                (saved_table.take_updates(), saved_table.take_changed())
             })
             .inner;
 
         self.saved_addresses = table_rows.into_iter().map(SavedAddress::from).collect();
 
+        // Handle immediate updates (Enter key pressed)
         for (idx, vstr, vtype) in value_updates {
+            // Clear debounce timer for this row to avoid double-write
+            if let Some((pending_row, _)) = self.value_edit_last_changed {
+                if pending_row == idx {
+                    self.value_edit_last_changed = None;
+                }
+            }
             match self.parse_value_for_type(&vstr, vtype) {
                 Ok(nv) => self.write_saved_value(idx, nv),
                 Err(e) => self.status_message = format!("Error: {}", e),
+            }
+        }
+
+        // Handle debounced updates (text changed)
+        if let Some((changed_row, _vstr, _vtype)) = value_changed {
+            self.value_edit_last_changed = Some((changed_row, Instant::now()));
+        }
+
+        // Check if debounce timer has expired and write the value
+        if let Some((pending_row, last_change_time)) = self.value_edit_last_changed {
+            if last_change_time.elapsed() >= self.value_edit_debounce {
+                if pending_row < self.saved_addresses.len() {
+                    let vstr = self.value_edit_buffers[pending_row].clone();
+                    let vtype = self.saved_addresses[pending_row].value_type;
+                    match self.parse_value_for_type(&vstr, vtype) {
+                        Ok(nv) => self.write_saved_value(pending_row, nv),
+                        Err(e) => self.status_message = format!("Error: {}", e),
+                    }
+                }
+                self.value_edit_last_changed = None;
+            } else {
+                // Request another frame to check the timer again
+                ui.ctx().request_repaint();
             }
         }
     }
