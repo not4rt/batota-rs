@@ -1,6 +1,6 @@
-use crate::memory::{MemoryError, MemoryReader};
-use crate::process::get_memory_regions;
-use crate::types::{FoundAddress, ScanType, Value, ValueType};
+use super::memory::{MemoryError, MemoryReader};
+use super::process::get_memory_regions;
+use super::types::{FoundAddress, ScanType, Value, ValueType};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -115,6 +115,105 @@ impl Scanner {
         let final_results = Arc::try_unwrap(results).unwrap().into_inner().unwrap();
 
         Ok(final_results)
+    }
+
+    /// Perform initial scan and stream incremental batches through a channel.
+    pub fn initial_scan_streaming(
+        &self,
+        scan_type: ScanType,
+        target_value: Option<Value>,
+        batch_size: usize,
+        sender: std::sync::mpsc::Sender<Vec<FoundAddress>>,
+    ) -> Result<(), MemoryError> {
+        let regions = get_memory_regions(self.pid)?;
+        eprintln!(
+            "[scan] initial_scan_streaming pid={} scan_type={:?} value_type={:?} regions={}",
+            self.pid,
+            scan_type,
+            self.value_type,
+            regions.len()
+        );
+
+        let writable_regions: Vec<_> = regions
+            .into_iter()
+            .filter(|r| r.writable && r.readable)
+            .collect();
+
+        let value_size = self.value_type.size();
+        let batch_size = batch_size.max(1);
+
+        writable_regions.par_iter().for_each(|region| {
+            let sender = sender.clone();
+            match self.reader.read_region(region) {
+                Ok(data) => {
+                    let mut local_results = Vec::new();
+                    let mut offset = 0;
+                    while offset + value_size <= data.len() {
+                        if let Some(current_value) =
+                            Value::from_bytes(&data[offset..offset + value_size], self.value_type)
+                        {
+                            let matches = match scan_type {
+                                ScanType::ExactValue => {
+                                    if let Some(ref target) = target_value {
+                                        current_value.compare(target, ScanType::ExactValue)
+                                    } else {
+                                        false
+                                    }
+                                }
+                                ScanType::GreaterThan => {
+                                    if let Some(ref target) = target_value {
+                                        current_value.compare(target, ScanType::GreaterThan)
+                                    } else {
+                                        false
+                                    }
+                                }
+                                ScanType::LessThan => {
+                                    if let Some(ref target) = target_value {
+                                        current_value.compare(target, ScanType::LessThan)
+                                    } else {
+                                        false
+                                    }
+                                }
+                                ScanType::UnknownInitial => true,
+                                _ => false,
+                            };
+
+                            if matches {
+                                local_results.push(FoundAddress {
+                                    address: region.start + offset,
+                                    value: current_value,
+                                });
+
+                                if local_results.len() >= batch_size {
+                                    let chunk: Vec<FoundAddress> =
+                                        local_results.drain(..).collect();
+                                    let _ = sender.send(chunk);
+                                }
+                            }
+                        }
+                        offset += 1;
+                    }
+
+                    if !local_results.is_empty() {
+                        let _ = sender.send(local_results);
+                    }
+                }
+                Err(err) => {
+                    eprintln!(
+                        "[scan] read_region failed pid={} region={:016X}-{:016X} perms=r{}w{}x{} err={}",
+                        self.pid,
+                        region.start,
+                        region.end,
+                        if region.readable { "1" } else { "0" },
+                        if region.writable { "1" } else { "0" },
+                        if region.executable { "1" } else { "0" },
+                        err
+                    );
+                }
+            }
+        });
+
+        Ok(())
     }
 
     /// Rescan existing addresses with new criteria

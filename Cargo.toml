@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 eframe = "0.33.3"
 egui = "0.33.3"
+egui_table = "0.6"
 rayon = "1.10"
 nix = { version = "0.31.1", features = ["process", "signal", "uio"] }
 thiserror = "2.0.18"

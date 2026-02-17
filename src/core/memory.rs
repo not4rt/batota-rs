@@ -1,4 +1,4 @@
-use crate::process::MemoryRegion;
+use super::process::MemoryRegion;
 use nix::errno::Errno;
 use nix::sys::uio::{process_vm_readv, process_vm_writev, RemoteIoVec};
 use nix::unistd::Pid;
@@ -12,7 +12,7 @@ pub enum MemoryError {
     #[error("Nix error: {0}")]
     Nix(#[from] nix::Error),
     #[error("Process error: {0}")]
-    Process(#[from] crate::process::ProcessError),
+    Process(#[from] super::process::ProcessError),
     #[error("Permission denied")]
     PermissionDenied,
     #[error("Invalid address")]
