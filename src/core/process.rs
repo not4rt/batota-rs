@@ -7,10 +7,6 @@ use thiserror::Error;
 pub enum ProcessError {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
-    #[error("Process not found")]
-    NotFound,
-    #[error("Permission denied")]
-    PermissionDenied,
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +28,9 @@ pub struct MemoryRegion {
     pub readable: bool,
     pub writable: bool,
     pub executable: bool,
+    #[allow(dead_code)]
     pub offset: usize,
+    #[allow(dead_code)]
     pub pathname: String,
 }
 

@@ -77,7 +77,7 @@ impl Layout {
                             .add_enabled(can_first_scan, egui::Button::new("First Scan"))
                             .clicked()
                         {
-                            state.start_scan(ctx);
+                            state.start_scan();
                         }
                     } else if ui.button("New Scan").clicked() {
                         state.new_scan();
@@ -87,7 +87,7 @@ impl Layout {
                         .add_enabled(can_next_scan, egui::Button::new("Next Scan"))
                         .clicked()
                     {
-                        state.start_scan(ctx);
+                        state.start_scan();
                     }
                 });
 

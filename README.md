@@ -29,7 +29,7 @@ A lightweight memory scanner and offline game cheat tool for Linux with a GUI in
 
 ### From Binary
 
-Download the latest release from the [Releases](https://github.com/not4rt/batota/releases) page.
+Download the latest release from the [Releases](https://github.com/not4rt/batota-rs/releases) page.
 
 ```bash
 chmod +x batota
@@ -39,7 +39,7 @@ sudo ./batota
 ### From Source
 
 ```bash
-git clone https://github.com/not4rt/batota.git
+git clone https://github.com/not4rt/batota-rs.git
 cd batota
 cargo build --release
 sudo ./target/release/batota

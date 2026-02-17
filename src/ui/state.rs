@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use super::tables::{FoundAddressesTable, SavedAddress as TableSavedAddress, SavedAddressesTable};
 use crate::core::{
-    FoundAddress, MemoryReader, Process, ScanType, Scanner, Value, ValueType, list_processes,
+    FoundAddress, Process, ScanType, Scanner, Value, ValueType, check_process_exists,
+    list_processes,
 };
 
 pub(crate) struct BatotaAppState {
@@ -21,7 +22,6 @@ pub(crate) struct BatotaAppState {
     pub(crate) scan_results: Vec<FoundAddress>,
     pub(crate) saved_addresses: Vec<SavedAddress>,
     pub(crate) is_scanning: bool,
-    pub(crate) scan_receiver: Option<Receiver<ScanResult>>,
     pub(crate) scan_stream_receiver: Option<Receiver<Vec<FoundAddress>>>,
     pub(crate) scan_done_receiver: Option<Receiver<Result<(), String>>>,
     pub(crate) scan_progress_receiver: Option<Receiver<(usize, usize)>>,
@@ -38,11 +38,6 @@ pub(crate) struct BatotaAppState {
     pub(crate) scan_value_type: ValueType,
     pub(crate) last_refresh: Instant,
     pub(crate) refresh_interval: Duration,
-}
-
-pub(crate) enum ScanResult {
-    Complete(Vec<FoundAddress>),
-    Error(String),
 }
 
 #[derive(Clone)]
@@ -67,7 +62,6 @@ impl Default for BatotaAppState {
             scan_results: Vec::new(),
             saved_addresses: Vec::new(),
             is_scanning: false,
-            scan_receiver: None,
             scan_stream_receiver: None,
             scan_done_receiver: None,
             scan_progress_receiver: None,
@@ -105,7 +99,7 @@ impl BatotaAppState {
         }
     }
 
-    pub(crate) fn start_scan(&mut self, ctx: &egui::Context) {
+    pub(crate) fn start_scan(&mut self) {
         if self.selected_process.is_none() {
             self.status_message = "No process selected".to_string();
             return;
@@ -113,6 +107,13 @@ impl BatotaAppState {
 
         let process = self.selected_process.as_ref().unwrap();
         let pid = process.pid;
+
+        // Check if process still exists before scanning
+        if !check_process_exists(pid) {
+            self.status_message = format!("Process {} no longer exists", pid);
+            return;
+        }
+
         let value_type = self.value_type;
         let scan_type = self.scan_type;
 
@@ -138,7 +139,6 @@ impl BatotaAppState {
         let (batch_tx, batch_rx) = channel();
         let (done_tx, done_rx) = channel();
         let (progress_tx, progress_rx) = channel();
-        self.scan_receiver = None;
         self.scan_stream_receiver = Some(batch_rx);
         self.scan_done_receiver = Some(done_rx);
         self.scan_progress_receiver = Some(progress_rx);
@@ -324,9 +324,10 @@ impl BatotaAppState {
         if let Some(process) = &self.selected_process {
             if index < self.saved_addresses.len() {
                 let address = self.saved_addresses[index].address;
-                let reader = MemoryReader::new(process.pid);
+                let value_type = self.saved_addresses[index].value_type;
+                let scanner = Scanner::new(process.pid, value_type);
 
-                match reader.write_memory(address, &new_value.to_bytes()) {
+                match scanner.write_address(address, &new_value) {
                     Ok(_) => {
                         self.saved_addresses[index].value = new_value;
                         self.status_message = format!("Written to {:X}", address);
@@ -361,27 +362,21 @@ impl BatotaAppState {
             return;
         }
 
-        let reader = MemoryReader::new(process.pid);
-
         for (i, saved) in self.saved_addresses.iter_mut().enumerate() {
             if self.editing_saved_value == Some(i) {
                 continue;
             }
-            let size = saved.value_type.size();
-            if let Ok(data) = reader.read_value(saved.address, size) {
-                if let Some(v) = Value::from_bytes(&data, saved.value_type) {
-                    saved.value = v;
-                }
+            let scanner = Scanner::new(process.pid, saved.value_type);
+            if let Ok(v) = scanner.read_address(saved.address) {
+                saved.value = v;
             }
         }
 
         let max_refresh = self.scan_results.len().min(1000);
-        let scan_size = self.scan_value_type.size();
+        let scanner = Scanner::new(process.pid, self.scan_value_type);
         for found in self.scan_results.iter_mut().take(max_refresh) {
-            if let Ok(data) = reader.read_value(found.address, scan_size) {
-                if let Some(v) = Value::from_bytes(&data, self.scan_value_type) {
-                    found.value = v;
-                }
+            if let Ok(v) = scanner.read_address(found.address) {
+                found.value = v;
             }
         }
     }
