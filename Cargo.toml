@@ -1,0 +1,19 @@
+[package]
+name = "cheat-engine-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.33.3"
+egui = "0.33.3"
+rayon = "1.10"
+nix = { version = "0.31.1", features = ["process", "signal", "uio"] }
+thiserror = "2.0.18"
+memmap2 = "0.9"
+regex = "1.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
